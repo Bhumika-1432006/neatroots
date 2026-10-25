@@ -37,7 +37,7 @@ export class SteeredRequest extends Promise<unknown> {
       // When the inner value comes from a plain-promise wrapper (e.g. neatlogs.wrapOpenAI in
       // the documented neatlogs+steer double-wrap), it has no _thenUnwrap.  Apply the transform
       // directly to the awaited value so parse() works through the composition.
-      if (typeof v._thenUnwrap !== "function") return { value: transform(await v, {}) };
+      if (v == null || typeof v._thenUnwrap !== "function") return { value: transform(await (v as unknown), {}) };
       return { value: v._thenUnwrap(transform) };
     }));
   }
@@ -51,7 +51,7 @@ export class SteeredRequest extends Promise<unknown> {
       const v = value as ResponseRequest;
       // Same composition guard: if the inner value has no withResponse (e.g. when neatlogs
       // wraps the client first), return a minimal shape so stream().finalMessage() works.
-      if (typeof v.withResponse !== "function") return { data: await v, response: undefined };
+      if (v == null || typeof v.withResponse !== "function") return { data: await (v as unknown), response: undefined };
       return v.withResponse();
     });
   }

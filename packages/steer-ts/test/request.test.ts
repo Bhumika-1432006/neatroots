@@ -134,4 +134,14 @@ describe("OpenAI parse helpers", () => {
     const request = new SteeredRequest(Promise.resolve({ value: original }))._thenUnwrap(() => { throw error; });
     await expect(request).rejects.toBe(error);
   });
+
+  it.each([null, undefined])("handles null/undefined inner value in _thenUnwrap (%s)", async (inner) => {
+    const request = new SteeredRequest(Promise.resolve({ value: inner }))._thenUnwrap((v) => ({ got: v }));
+    await expect(request).resolves.toEqual({ got: inner });
+  });
+
+  it.each([null, undefined])("handles null/undefined inner value in withResponse (%s)", async (inner) => {
+    const request = new SteeredRequest(Promise.resolve({ value: inner }));
+    await expect(request.withResponse()).resolves.toEqual({ data: inner, response: undefined });
+  });
 });
