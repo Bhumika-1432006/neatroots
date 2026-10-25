@@ -190,5 +190,19 @@ describe("neatroots-steer (ts)", () => {
     // Without the fix, callCount would be 2 (outer traced + inner traced after steer's write).
     expect(callCount).toBe(1);
     expect((seen as any).messages[0].content).toContain("<neatroots-guidance>");
+
+    // Prototype-backed method: create is inherited from a prototype, not own.
+    // Object.getOwnPropertyDescriptor(proxy, "create") returns undefined in this case,
+    // so the fix must walk the prototype chain to find and capture the raw function.
+    notes.push(note());
+    let seenProto: unknown;
+    const completionsProto = { create: async (p: unknown) => ((seenProto = p), "proto-ok") };
+    const completionsInstance = Object.create(completionsProto);
+    const protoClient = wrapOpenAI(makeTracingProxy({ chat: { completions: completionsInstance } }));
+    callCount = 0;
+    const protoResult = await protoClient.chat.completions.create({ model: "m", messages: [{ role: "user", content: "q" }] });
+    expect(protoResult).toBe("proto-ok");
+    expect(callCount).toBe(1);
+    expect((seenProto as any).messages[0].content).toContain("<neatroots-guidance>");
   });
 });

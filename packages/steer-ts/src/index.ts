@@ -338,13 +338,20 @@ function wrapMethod(
   override: Override = (p) => p,
 ): void {
   if (!owner) return;
-  // Read via getOwnPropertyDescriptor to bypass a Proxy GET trap (e.g. a neatlogs tracing
-  // Proxy). Without this, reading owner[name] returns traced(realCreate), and the subsequent
-  // assignment puts steer(traced(realCreate)) on the target; the Proxy then re-wraps on every
-  // read, recording two spans per call instead of one. Fall back to owner[name] only when the
-  // property is inherited (not own), which is not affected by a GET-only trap.
-  const desc = Object.getOwnPropertyDescriptor(owner, name);
-  const original = (desc !== undefined ? desc.value : owner[name]) as ((...a: unknown[]) => unknown) & { __neatroots?: boolean };
+  // Walk the prototype chain via getOwnPropertyDescriptor to bypass any Proxy GET trap
+  // (e.g. a neatlogs tracing Proxy). Reading owner[name] invokes the GET trap and returns
+  // traced(realCreate); the subsequent assignment then puts steer(traced(realCreate)) on
+  // the target, so the GET trap adds yet another layer, recording two spans per call.
+  // getOwnPropertyDescriptor on a Proxy with no matching trap delegates directly to
+  // Reflect.getOwnPropertyDescriptor(target, …), bypassing the trap entirely.
+  let rawDesc: PropertyDescriptor | undefined;
+  let proto: object | null = owner;
+  while (proto !== null) {
+    rawDesc = Object.getOwnPropertyDescriptor(proto, name);
+    if (rawDesc !== undefined) break;
+    proto = Object.getPrototypeOf(proto);
+  }
+  const original = rawDesc?.value as ((...a: unknown[]) => unknown) & { __neatroots?: boolean };
   if (typeof original !== "function" || original.__neatroots) return;
   const wrapped = function (this: unknown, ...args: unknown[]) {
     const request = (async () => {
